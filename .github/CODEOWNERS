@@ -1,0 +1,3 @@
+# Default owner for all files in the repository.
+# Every pull request touching any file requires review/approval by the code owner.
+* @DerGenus
