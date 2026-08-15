@@ -79,25 +79,49 @@
       </div>
 
       <div class="field">
-        <label for="brightness" data-i18n="brightnessLabel">Brightness</label>
+        <div class="field-label">
+          <label for="brightness" data-i18n="brightnessLabel">Brightness</label>
+          <span class="info" tabindex="0" data-i18n-aria="helpAria" aria-label="Help">
+            <span class="info-icon" aria-hidden="true">?</span>
+            <span class="tooltip" data-i18n="brightnessHelp">Adjusts overall brightness before color conversion.</span>
+          </span>
+        </div>
         <input type="range" id="brightness" min="40" max="160" value="100" step="1">
         <span class="range-val" id="brightnessVal">100%</span>
       </div>
 
       <div class="field">
-        <label for="contrast" data-i18n="contrastLabel">Contrast</label>
+        <div class="field-label">
+          <label for="contrast" data-i18n="contrastLabel">Contrast</label>
+          <span class="info" tabindex="0" data-i18n-aria="helpAria" aria-label="Help">
+            <span class="info-icon" aria-hidden="true">?</span>
+            <span class="tooltip" data-i18n="contrastHelp">Adjusts the difference between light and dark areas.</span>
+          </span>
+        </div>
         <input type="range" id="contrast" min="40" max="160" value="100" step="1">
         <span class="range-val" id="contrastVal">100%</span>
       </div>
 
       <div class="field">
-        <label for="ditherStrength" data-i18n="ditherStrengthLabel">Dither strength</label>
+        <div class="field-label">
+          <label for="ditherStrength" data-i18n="ditherStrengthLabel">Dither strength</label>
+          <span class="info" tabindex="0" data-i18n-aria="helpAria" aria-label="Help">
+            <span class="info-icon" aria-hidden="true">?</span>
+            <span class="tooltip" data-i18n="ditherStrengthHelp">Controls how strongly Floyd-Steinberg error diffusion is applied.</span>
+          </span>
+        </div>
         <input type="range" id="ditherStrength" min="0" max="100" value="100" step="1">
         <span class="range-val" id="ditherStrengthVal">100%</span>
       </div>
 
       <div class="field">
-        <label for="blackThreshold" data-i18n="blackThresholdLabel">Black threshold</label>
+        <div class="field-label">
+          <label for="blackThreshold" data-i18n="blackThresholdLabel">Black threshold</label>
+          <span class="info" tabindex="0" data-i18n-aria="helpAria" aria-label="Help">
+            <span class="info-icon" aria-hidden="true">?</span>
+            <span class="tooltip" data-i18n="blackThresholdHelp">Pixels darker than this luminance are forced to pure black without dithering.</span>
+          </span>
+        </div>
         <input type="range" id="blackThreshold" min="0" max="128" value="0" step="1">
         <span class="range-val" id="blackThresholdVal">0</span>
       </div>
