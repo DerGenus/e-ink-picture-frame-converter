@@ -72,3 +72,12 @@ Algorithm and format follow the official Waveshare tooling:
 - Firmware/reader: https://github.com/waveshareteam/PhotoPainter_B
 - Wiki: https://www.waveshare.com/wiki/PhotoPainter
 - Floyd-Steinberg guide: https://www.waveshare.com/wiki/E-Paper_Floyd-Steinberg
+
+## Contributing
+
+Contributions are welcome via issue reports or pull requests. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+## License
+
+Released under the [MIT License](LICENSE).
