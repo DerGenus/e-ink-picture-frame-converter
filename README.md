@@ -1,5 +1,9 @@
 # e-Ink Photo Painter Converter
 
+[![Deploy to GitHub Pages](https://github.com/DerGenus/e-ink-picture-frame-converter/actions/workflows/deploy.yml/badge.svg)](https://github.com/DerGenus/e-ink-picture-frame-converter/actions/workflows/deploy.yml)
+
+**Live app:** https://DerGenus.github.io/e-ink-picture-frame-converter/
+
 A lightweight, single-page web app that converts images for the **Waveshare
 PhotoPainter (B)** — a 7.3" 6-color e-Ink photo frame (800×480).
 
