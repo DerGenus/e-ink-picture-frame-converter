@@ -18,7 +18,7 @@ telemetry — your images never leave the device.
 - Fitting modes: **Cover** (crop to fill) or **Contain** (fit with white bars)
 - **Floyd-Steinberg** dithering or plain nearest-color quantization
 - Brightness & contrast adjustment
-- Vertical flip toggle (for orientation quirks on the panel)
+- Horizontal flip toggle (for orientation quirks on the panel)
 - One-click **Download BMP**
 
 ## Usage
@@ -54,10 +54,9 @@ can verify the result before transferring it to the SD card.
 
 The frame's firmware reads BMP rows sequentially and mirrors them horizontally,
 then applies a rotation — so the final on-panel orientation can vary by firmware
-version. The preview shows the converted result as authored. If the image looks
-upside-down on the frame, enable **Flip vertical** and regenerate. The
-horizontal handling matches the reference Waveshare reader, so it should appear
-correctly; if it doesn't on your unit, the same flip approach is the fallback.
+version. If the image appears mirrored on the frame, enable **Flip horizontal**
+and regenerate to compensate. The preview reflects the flip setting and matches
+the downloaded BMP.
 
 ## Files
 

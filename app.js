@@ -21,7 +21,7 @@ const LANG = {
     ditheringLabel:   'Dithering',
     ditherFS:         'Floyd-Steinberg',
     ditherNone:       'None (nearest color)',
-    flipVLabel:       'Flip vertical',
+flipVLabel:   'Flip horizontal',
     flipOff:          'Off',
     flipOn:           'On',
     brightnessLabel:  'Brightness',
@@ -60,7 +60,7 @@ const LANG = {
     ditheringLabel:   'Dithering',
     ditherFS:         'Floyd-Steinberg',
     ditherNone:       'Kein Dithering (nächste Farbe)',
-    flipVLabel:       'Vertikal spiegeln',
+flipVLabel:   'Horizontal spiegeln',
     flipOff:          'Aus',
     flipOn:           'An',
     brightnessLabel:  'Helligkeit',
@@ -410,6 +410,11 @@ function showPreview(canvas, data, w, h) {
   tmp.width = w; tmp.height = h;
   tmp.getContext('2d').putImageData(img, 0, 0);
   ctx.imageSmoothingEnabled = false;
+  if ($('flipV').value === 'on') {
+    // Mirror left-right so the preview matches the BMP written by makeBmp().
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
   ctx.drawImage(tmp, 0, 0, canvas.width, canvas.height);
 }
 
@@ -453,10 +458,10 @@ function makeBmp(data, w, h) {
   // Pixel data: bottom-up, BGR.
   const flip = $('flipV').value === 'on';
   for (let y = 0; y < h; y++) {
-    const srcY = flip ? (h - 1 - y) : y;
     const rowStart = o;
     for (let x = 0; x < w; x++) {
-      const i = (srcY * w + x) * 4;
+      const sx = flip ? (w - 1 - x) : x;
+      const i = (y * w + sx) * 4;
       view.setUint8(o++, data[i + 2]);  // B
       view.setUint8(o++, data[i + 1]);  // G
       view.setUint8(o++, data[i]);      // R
