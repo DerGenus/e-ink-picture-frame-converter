@@ -50,6 +50,7 @@ flipVLabel:   'Flip horizontal',
     toastImageRejected: 'Skipped {name} — image too large (max 100 megapixels).',
     toastLoadFailed:  'Could not load {name}.',
     errorConvert:     'Could not convert this image. Please try another file.',
+    langAria:         'Language',
   },
   de: {
     title:            'e-Ink Photo Painter Konverter',
@@ -97,6 +98,7 @@ flipVLabel:   'Horizontal spiegeln',
     toastImageRejected: 'Übersprungen: {name} — Bild zu groß (max. 100 Megapixel).',
     toastLoadFailed:  'Konnte {name} nicht laden.',
     errorConvert:     'Dieses Bild konnte nicht konvertiert werden. Bitte versuchen Sie eine andere Datei.',
+    langAria:         'Sprache',
   },
 };
 

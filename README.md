@@ -12,18 +12,27 @@ It quantizes any uploaded image onto the frame's 6-color palette using
 SD card.
 
 **Privacy:** everything runs in your browser. No server, no uploads, no
-telemetry — your images never leave the device.
+telemetry — your images never leave the device. The app makes no network
+requests at all (enforced by a strict Content-Security-Policy).
 
 ## Features
 
-- Drag-and-drop / browse image upload (PNG, JPG, WebP, BMP, GIF, …)
+- Drag-and-drop / browse image upload (PNG, JPG, WebP, BMP, GIF, AVIF)
 - Side-by-side preview of the **original** and the **converted** result
 - Targets both supported resolutions: **800×480** (landscape) and **480×800** (portrait)
 - Fitting modes: **Cover** (crop to fill) or **Contain** (fit with white bars)
 - **Floyd-Steinberg** dithering or plain nearest-color quantization
 - Brightness & contrast adjustment
 - Horizontal flip toggle (for orientation quirks on the panel)
-- One-click **Download BMP**
+- One-click **Download BMP** or **Download ZIP** (all images at once)
+
+### Upload limits
+
+- Up to **20 files** per batch, **50 MB** per file, **100 megapixels** per image.
+- Only **raster** formats are accepted (PNG, JPG, WebP, BMP, GIF, AVIF).
+  Vector formats (SVG, …) are rejected: they may reference external resources,
+  which would send network requests from your device and can corrupt the
+  conversion pipeline.
 
 ## Usage
 
