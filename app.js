@@ -130,6 +130,18 @@ const RESOLUTIONS = {
   '480x800': { width: 480, height: 800 },
 };
 
+// Default per-image settings, matching the initial HTML control values.
+const DEFAULT_SETTINGS = {
+  orientation:     '800x480',
+  fitMode:         'cover',
+  dithering:       'fs',
+  flipV:           'off',
+  brightness:      '100',
+  contrast:        '100',
+  ditherStrength:  '100',
+  blackThreshold:  '0',
+};
+
 // --- DOM ----------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
 
@@ -212,7 +224,7 @@ function loadFiles(fileList) {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const entry = { id: 'img' + (++imageId), name: file.name, img };
+      const entry = { id: 'img' + (++imageId), name: file.name, img, settings: Object.assign({}, DEFAULT_SETTINGS) };
       images.push(entry);
       addThumb(entry);
       finish();
@@ -255,8 +267,29 @@ function selectImage(id) {
   sourceImage = entry.img;
   resultBuffer = null;
   downloadBtn.disabled = true;
+  applySettingsToControls(entry.settings);
   updateThumbSelection();
   render();
+}
+
+function selectedEntry() {
+  return images.find((e) => e.id === selectedId) || null;
+}
+
+// Load an image's stored settings into the DOM controls.
+function applySettingsToControls(s) {
+  $('orientation').value = s.orientation;
+  $('fitMode').value = s.fitMode;
+  $('dithering').value = s.dithering;
+  $('flipV').value = s.flipV;
+  brightness.value = s.brightness;
+  contrast.value = s.contrast;
+  ditherStrength.value = s.ditherStrength;
+  blackThreshold.value = s.blackThreshold;
+  brightnessVal.textContent = s.brightness + '%';
+  contrastVal.textContent = s.contrast + '%';
+  ditherStrengthVal.textContent = s.ditherStrength + '%';
+  blackThresholdVal.textContent = s.blackThreshold;
 }
 
 function updateThumbSelection() {
@@ -285,8 +318,14 @@ resetBtn.addEventListener('click', () => {
 ['orientation', 'fitMode', 'dithering', 'flipV', 'brightness', 'contrast', 'ditherStrength', 'blackThreshold']
   .forEach((id) => {
     const el = $(id);
-    el.addEventListener('input', () => { if (sourceImage) render(); });
-    el.addEventListener('change', () => { if (sourceImage) render(); });
+    const handler = () => {
+      const entry = selectedEntry();
+      if (!entry) return;
+      entry.settings[id] = el.value;   // store per-image
+      render();
+    };
+    el.addEventListener('input', handler);
+    el.addEventListener('change', handler);
   });
 
 brightness.addEventListener('input', () => { brightnessVal.textContent = brightness.value + '%'; });
@@ -297,38 +336,40 @@ blackThreshold.addEventListener('input', () => { blackThresholdVal.textContent =
 // --- Render pipeline ----------------------------------------------------
 function render() {
   if (!sourceImage) return;
-  const w = RESOLUTIONS[$('orientation').value].width;
-  const h = RESOLUTIONS[$('orientation').value].height;
+  const entry = selectedEntry();
+  const settings = (entry && entry.settings) || DEFAULT_SETTINGS;
+  const w = RESOLUTIONS[settings.orientation].width;
+  const h = RESOLUTIONS[settings.orientation].height;
 
   // Convert the selected image (crop → adjust → quantize).
-  const out = convert(sourceImage, w, h);
+  const out = convert(sourceImage, w, h, settings);
 
   // Preview of the original and the converted result.
   showOriginal(originalCanvas, sourceImage);
-  showPreview(resultCanvas, out, w, h);
+  showPreview(resultCanvas, out, w, h, settings);
   const sw = sourceImage.naturalWidth;
   const sh = sourceImage.naturalHeight;
   originalMeta.textContent = t('metaSource')
     .replace('{sw}', sw).replace('{sh}', sh).replace('{dw}', w).replace('{dh}', h);
   resultMeta.textContent = t('metaResult')
     .replace('{dw}', w).replace('{dh}', h)
-    .replace('{dither}', $('dithering').value === 'fs' ? t('metaFs') : t('metaNone'));
+    .replace('{dither}', settings.dithering === 'fs' ? t('metaFs') : t('metaNone'));
 
   // Build the 24-bit BMP for download.
-  resultBuffer = makeBmp(out, w, h);
+  resultBuffer = makeBmp(out, w, h, settings);
   downloadBtn.disabled = false;
-  resultName = ($('orientation').value === '480x800' ? 'portrait' : 'landscape') + '.bmp';
+  resultName = (settings.orientation === '480x800' ? 'portrait' : 'landscape') + '.bmp';
 }
 
-// Run the full conversion pipeline for a given image with the current settings.
-function convert(img, w, h) {
-  const src = preparePixels(img, w, h);
-  const adjusted = adjust(src, w, h);
-  return quantize(adjusted, w, h);
+// Run the full conversion pipeline for a given image with the given settings.
+function convert(img, w, h, settings) {
+  const src = preparePixels(img, w, h, settings);
+  const adjusted = adjust(src, w, h, settings);
+  return quantize(adjusted, w, h, settings);
 }
 
 // Prepare pixel data at the target dimensions using the selected fit mode.
-function preparePixels(img, w, h) {
+function preparePixels(img, w, h, settings) {
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -338,7 +379,7 @@ function preparePixels(img, w, h) {
   const iw = img.naturalWidth;
   const ih = img.naturalHeight;
 
-  if ($('fitMode').value === 'cover') {
+  if (settings.fitMode === 'cover') {
     const scale = Math.max(w / iw, h / ih);
     const sw = w / scale;
     const sh = h / scale;
@@ -358,9 +399,9 @@ function preparePixels(img, w, h) {
 }
 
 // Apply brightness / contrast to an RGBA byte buffer.
-function adjust(data, w, h) {
-  const b = (brightness.value - 100) / 100;   // -0.6 .. +0.6
-  const c = (contrast.value - 100) / 100;     // -0.6 .. +0.6
+function adjust(data, w, h, settings) {
+  const b = (settings.brightness - 100) / 100;   // -0.6 .. +0.6
+  const c = (settings.contrast - 100) / 100;     // -0.6 .. +0.6
   if (b === 0 && c === 0) return data;
 
   const factor = 259 * (c + 255) / (255 * (259 - 255 * c));
@@ -379,12 +420,12 @@ function adjust(data, w, h) {
 // Map every pixel to its nearest palette color. Optionally run Floyd-Steinberg
 // dithering, which distributes quantization error to neighbouring pixels so
 // the limited palette can approximate smooth gradients.
-function quantize(src, w, h) {
+function quantize(src, w, h, settings) {
   const out = new Uint8ClampedArray(w * h * 4);
-  const strength = ditherStrength.value / 100;   // 0..1, scales error diffusion
-  const thresh = parseInt(blackThreshold.value, 10); // 0..128 luminance cutoff
+  const strength = settings.ditherStrength / 100;   // 0..1, scales error diffusion
+  const thresh = parseInt(settings.blackThreshold, 10); // 0..128 luminance cutoff
 
-  if ($('dithering').value === 'none' || strength === 0) {
+  if (settings.dithering === 'none' || strength === 0) {
     for (let i = 0; i < w * h; i++) {
       const r = src[i * 4], g = src[i * 4 + 1], b = src[i * 4 + 2];
       const c = nearest(r, g, b);
@@ -474,7 +515,7 @@ function showOriginal(canvas, img) {
 }
 
 // Render dithered RGBA data to a canvas for preview.
-function showPreview(canvas, data, w, h) {
+function showPreview(canvas, data, w, h, settings) {
   const scale = 800 / w;              // fixed-width preview
   canvas.width = w * scale;
   canvas.height = h * scale;
@@ -485,7 +526,7 @@ function showPreview(canvas, data, w, h) {
   tmp.width = w; tmp.height = h;
   tmp.getContext('2d').putImageData(img, 0, 0);
   ctx.imageSmoothingEnabled = false;
-  if ($('flipV').value === 'on') {
+  if (settings.flipV === 'on') {
     // Mirror left-right so the preview matches the BMP written by makeBmp().
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
@@ -499,7 +540,7 @@ function showPreview(canvas, data, w, h) {
 // Produces a standard, spec-compliant 24-bit (RGB888) BMP that displays
 // correctly in any image viewer. Rows are stored bottom-up with 4-byte
 // alignment, BGR byte order, as per the BMP specification.
-function makeBmp(data, w, h) {
+function makeBmp(data, w, h, settings) {
   const rowSize = Math.floor((w * 3 + 3) / 4) * 4;
   const pixelArraySize = rowSize * h;
   const fileSize = 54 + pixelArraySize;
@@ -531,7 +572,7 @@ function makeBmp(data, w, h) {
   writeU32(0);                          // important colors
 
   // Pixel data: bottom-up, BGR.
-  const flip = $('flipV').value === 'on';
+  const flip = settings.flipV === 'on';
   for (let y = 0; y < h; y++) {
     const rowStart = o;
     for (let x = 0; x < w; x++) {
@@ -562,12 +603,13 @@ downloadBtn.addEventListener('click', () => {
 
 downloadZipBtn.addEventListener('click', () => {
   if (!images.length) return;
-  const w = RESOLUTIONS[$('orientation').value].width;
-  const h = RESOLUTIONS[$('orientation').value].height;
   const seen = {};
   const entries = images.map((entry) => {
-    const out = convert(entry.img, w, h);
-    const bytes = new Uint8Array(makeBmp(out, w, h));
+    const s = entry.settings || DEFAULT_SETTINGS;
+    const w = RESOLUTIONS[s.orientation].width;
+    const h = RESOLUTIONS[s.orientation].height;
+    const out = convert(entry.img, w, h, s);
+    const bytes = new Uint8Array(makeBmp(out, w, h, s));
     let base = entry.name.replace(/\.[^.]+$/, '') || 'image';
     if (seen[base]) base = base + ' (' + (++seen[base]) + ')';
     else seen[base] = 1;
