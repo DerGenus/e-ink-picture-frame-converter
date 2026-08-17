@@ -44,6 +44,11 @@ flipVLabel:   'Flip horizontal',
     metaResult:       '{dw} × {dh} · {dither} · 6 colors',
     metaFs:           'Floyd-Steinberg',
     metaNone:         'nearest color',
+    toastSkipped:     'Skipped {n} file(s) — unsupported format.',
+    toastTooLarge:    'Skipped {n} file(s) — larger than 50 MB.',
+    toastTooMany:     'Only the first {n} files were loaded.',
+    toastImageRejected: 'Skipped {name} — image too large (max 100 megapixels).',
+    toastLoadFailed:  'Could not load {name}.',
   },
   de: {
     title:            'e-Ink Photo Painter Konverter',
@@ -85,6 +90,11 @@ flipVLabel:   'Horizontal spiegeln',
     metaResult:       '{dw} × {dh} · {dither} · 6 Farben',
     metaFs:           'Floyd-Steinberg',
     metaNone:         'nächste Farbe',
+    toastSkipped:     'Übersprungen: {n} Datei(en) — nicht unterstütztes Format.',
+    toastTooLarge:    'Übersprungen: {n} Datei(en) — größer als 50 MB.',
+    toastTooMany:     'Nur die ersten {n} Dateien wurden geladen.',
+    toastImageRejected: 'Übersprungen: {name} — Bild zu groß (max. 100 Megapixel).',
+    toastLoadFailed:  'Konnte {name} nicht laden.',
   },
 };
 
@@ -141,6 +151,41 @@ const DEFAULT_SETTINGS = {
   ditherStrength:  '100',
   blackThreshold:  '0',
 };
+
+// Upload limits (client-side hardening against decompression bombs / DoS).
+const MAX_FILES = 20;                   // max files per batch
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB per file
+const MAX_PIXELS = 100 * 1000 * 1000;   // 100 megapixels per decoded image
+
+// Only raster formats are accepted. Vector formats (SVG, ...) are rejected:
+// SVGs may reference external resources, which would leak the user's IP,
+// violate the "no network" privacy promise, and taint the canvas so
+// getImageData() throws.
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/bmp', 'image/gif', 'image/avif'];
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'avif'];
+
+// Accept a file if its declared MIME type is allowed, falling back to a
+// file-extension check for browsers that report an empty type.
+function isSupportedImage(file) {
+  if (IMAGE_TYPES.indexOf(file.type) !== -1) return true;
+  const ext = (file.name || '').split('.').pop().toLowerCase();
+  return IMAGE_EXTS.indexOf(ext) !== -1;
+}
+
+// Sanitize a file name for safe use as a ZIP entry name: no path separators,
+// no dot segments, no control characters, capped length.
+function sanitizeZipName(name) {
+  const clean = (name || 'image')
+    .replace(/\.[^.]+$/, '')               // strip extension
+    .replace(/[\\/]/g, '_')                // path separators
+    .replace(/[\u0000-\u001F\u007F]/g, '') // control characters
+    .trim()
+    .replace(/^\.+/, '')                   // leading dots
+    .replace(/\.\./g, '.')                 // dot segments
+    .slice(0, 60)
+    .trim();
+  return clean || 'image';
+}
 
 // --- DOM ----------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
@@ -205,10 +250,19 @@ fileInput.addEventListener('change', () => {
 });
 
 function loadFiles(fileList) {
-  const files = [].slice.call(fileList).filter((f) => f.type.startsWith('image/'));
-  if (!files.length) return;
+  const all = [].slice.call(fileList);
+  const files = all.filter(isSupportedImage);
+  if (files.length < all.length) showToast(t('toastSkipped').replace('{n}', all.length - files.length));
 
-  let pending = files.length;
+  let accepted = files.filter((f) => f.size <= MAX_FILE_SIZE);
+  if (accepted.length < files.length) showToast(t('toastTooLarge').replace('{n}', files.length - accepted.length));
+  if (accepted.length > MAX_FILES) {
+    showToast(t('toastTooMany').replace('{n}', MAX_FILES));
+    accepted = accepted.slice(0, MAX_FILES);
+  }
+  if (!accepted.length) return;
+
+  let pending = accepted.length;
   const finish = () => {
     if (--pending > 0) return;
     $('uploadCard').hidden = true;
@@ -220,16 +274,31 @@ function loadFiles(fileList) {
     else render();
   };
 
-  files.forEach((file) => {
+  accepted.forEach((file) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
+      URL.revokeObjectURL(url);
+      if (!img.naturalWidth || !img.naturalHeight) {
+        showToast(t('toastLoadFailed').replace('{name}', file.name));
+        finish();
+        return;
+      }
+      if (img.naturalWidth * img.naturalHeight > MAX_PIXELS) {
+        showToast(t('toastImageRejected').replace('{name}', file.name));
+        finish();
+        return;
+      }
       const entry = { id: 'img' + (++imageId), name: file.name, img, settings: Object.assign({}, DEFAULT_SETTINGS) };
       images.push(entry);
       addThumb(entry);
       finish();
     };
-    img.onerror = () => finish();
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      showToast(t('toastLoadFailed').replace('{name}', file.name));
+      finish();
+    };
     img.src = url;
   });
 }
@@ -300,6 +369,7 @@ function updateThumbSelection() {
 }
 
 resetBtn.addEventListener('click', () => {
+  images.forEach((entry) => entry.img.removeAttribute('src'));
   sourceImage = null;
   selectedId = null;
   images = [];
@@ -332,6 +402,21 @@ brightness.addEventListener('input', () => { brightnessVal.textContent = brightn
 contrast.addEventListener('input', () => { contrastVal.textContent = contrast.value + '%'; });
 ditherStrength.addEventListener('input', () => { ditherStrengthVal.textContent = ditherStrength.value + '%'; });
 blackThreshold.addEventListener('input', () => { blackThresholdVal.textContent = blackThreshold.value; });
+
+// Show a transient toast message (also used for upload rejections).
+function showToast(msg) {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 250);
+  }, 4000);
+}
 
 // --- Render pipeline ----------------------------------------------------
 function render() {
@@ -610,7 +695,7 @@ downloadZipBtn.addEventListener('click', () => {
     const h = RESOLUTIONS[s.orientation].height;
     const out = convert(entry.img, w, h, s);
     const bytes = new Uint8Array(makeBmp(out, w, h, s));
-    let base = entry.name.replace(/\.[^.]+$/, '') || 'image';
+    let base = sanitizeZipName(entry.name);
     if (seen[base]) base = base + ' (' + (++seen[base]) + ')';
     else seen[base] = 1;
     return { name: base + '.bmp', bytes };
