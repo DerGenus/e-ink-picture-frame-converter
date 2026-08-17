@@ -49,6 +49,7 @@ flipVLabel:   'Flip horizontal',
     toastTooMany:     'Only the first {n} files were loaded.',
     toastImageRejected: 'Skipped {name} — image too large (max 100 megapixels).',
     toastLoadFailed:  'Could not load {name}.',
+    errorConvert:     'Could not convert this image. Please try another file.',
   },
   de: {
     title:            'e-Ink Photo Painter Konverter',
@@ -95,6 +96,7 @@ flipVLabel:   'Horizontal spiegeln',
     toastTooMany:     'Nur die ersten {n} Dateien wurden geladen.',
     toastImageRejected: 'Übersprungen: {name} — Bild zu groß (max. 100 Megapixel).',
     toastLoadFailed:  'Konnte {name} nicht laden.',
+    errorConvert:     'Dieses Bild konnte nicht konvertiert werden. Bitte versuchen Sie eine andere Datei.',
   },
 };
 
@@ -385,6 +387,15 @@ resetBtn.addEventListener('click', () => {
 });
 
 // --- Settings -----------------------------------------------------------
+let renderQueued = false;
+// Throttle re-renders to at most one per animation frame (sliders fire
+// 'input' continuously).
+function queueRender() {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => { renderQueued = false; render(); });
+}
+
 ['orientation', 'fitMode', 'dithering', 'flipV', 'brightness', 'contrast', 'ditherStrength', 'blackThreshold']
   .forEach((id) => {
     const el = $(id);
@@ -392,7 +403,7 @@ resetBtn.addEventListener('click', () => {
       const entry = selectedEntry();
       if (!entry) return;
       entry.settings[id] = el.value;   // store per-image
-      render();
+      queueRender();
     };
     el.addEventListener('input', handler);
     el.addEventListener('change', handler);
@@ -421,29 +432,50 @@ function showToast(msg) {
 // --- Render pipeline ----------------------------------------------------
 function render() {
   if (!sourceImage) return;
-  const entry = selectedEntry();
-  const settings = (entry && entry.settings) || DEFAULT_SETTINGS;
-  const w = RESOLUTIONS[settings.orientation].width;
-  const h = RESOLUTIONS[settings.orientation].height;
+  try {
+    const entry = selectedEntry();
+    const settings = (entry && entry.settings) || DEFAULT_SETTINGS;
+    const w = RESOLUTIONS[settings.orientation].width;
+    const h = RESOLUTIONS[settings.orientation].height;
 
-  // Convert the selected image (crop → adjust → quantize).
-  const out = convert(sourceImage, w, h, settings);
+    // Convert the selected image (crop → adjust → quantize).
+    const out = convert(sourceImage, w, h, settings);
 
-  // Preview of the original and the converted result.
-  showOriginal(originalCanvas, sourceImage);
-  showPreview(resultCanvas, out, w, h, settings);
-  const sw = sourceImage.naturalWidth;
-  const sh = sourceImage.naturalHeight;
-  originalMeta.textContent = t('metaSource')
-    .replace('{sw}', sw).replace('{sh}', sh).replace('{dw}', w).replace('{dh}', h);
-  resultMeta.textContent = t('metaResult')
-    .replace('{dw}', w).replace('{dh}', h)
-    .replace('{dither}', settings.dithering === 'fs' ? t('metaFs') : t('metaNone'));
+    // Preview of the original and the converted result.
+    showOriginal(originalCanvas, sourceImage);
+    showPreview(resultCanvas, out, w, h, settings);
+    const sw = sourceImage.naturalWidth;
+    const sh = sourceImage.naturalHeight;
+    originalMeta.textContent = t('metaSource')
+      .replace('{sw}', sw).replace('{sh}', sh).replace('{dw}', w).replace('{dh}', h);
+    resultMeta.textContent = t('metaResult')
+      .replace('{dw}', w).replace('{dh}', h)
+      .replace('{dither}', settings.dithering === 'fs' ? t('metaFs') : t('metaNone'));
 
-  // Build the 24-bit BMP for download.
-  resultBuffer = makeBmp(out, w, h, settings);
-  downloadBtn.disabled = false;
-  resultName = (settings.orientation === '480x800' ? 'portrait' : 'landscape') + '.bmp';
+    // Build the 24-bit BMP for download.
+    resultBuffer = makeBmp(out, w, h, settings);
+    downloadBtn.disabled = false;
+    resultName = (settings.orientation === '480x800' ? 'portrait' : 'landscape') + '.bmp';
+    hideError();
+  } catch (err) {
+    // Tainted canvases, oversized/invalid images, or an unavailable 2D context
+    // must not silently break the app.
+    resultBuffer = null;
+    downloadBtn.disabled = true;
+    showError(t('errorConvert'));
+  }
+}
+
+function showError(msg) {
+  const el = $('errorBanner');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+}
+
+function hideError() {
+  const el = $('errorBanner');
+  if (el) el.hidden = true;
 }
 
 // Run the full conversion pipeline for a given image with the given settings.
@@ -464,6 +496,10 @@ function preparePixels(img, w, h, settings) {
   const iw = img.naturalWidth;
   const ih = img.naturalHeight;
 
+  // Composite onto white so transparent PNGs don't become black artifacts.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+
   if (settings.fitMode === 'cover') {
     const scale = Math.max(w / iw, h / ih);
     const sw = w / scale;
@@ -473,8 +509,6 @@ function preparePixels(img, w, h, settings) {
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
   } else {
     // contain -> letterbox with white (a palette color)
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, w, h);
     const scale = Math.min(w / iw, h / ih);
     const dw = iw * scale;
     const dh = ih * scale;
@@ -586,13 +620,14 @@ function nearest(r, g, b) {
   return best;
 }
 
-// Draw the source image onto a canvas, scaled to a fixed preview width.
+// Draw the source image onto a canvas, scaled to a fixed preview width
+// (capped height so extreme aspect ratios don't hit canvas size limits).
 function showOriginal(canvas, img) {
   const iw = img.naturalWidth;
   const ih = img.naturalHeight;
-  const scale = 800 / iw;
-  canvas.width = iw * scale;
-  canvas.height = ih * scale;
+  const scale = Math.min(800 / iw, 1200 / ih);
+  canvas.width = Math.max(1, Math.round(iw * scale));
+  canvas.height = Math.max(1, Math.round(ih * scale));
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
@@ -751,7 +786,7 @@ function makeZip(files) {
     const lh = new DataView(new ArrayBuffer(30));
     lh.setUint32(0, 0x04034b50, true);
     lh.setUint16(4, 20, true);       // version needed
-    lh.setUint16(6, 0, true);        // flags
+    lh.setUint16(6, 0x0800, true);   // flags: bit 11 = UTF-8 file names
     lh.setUint16(8, 0, true);        // method: stored
     lh.setUint16(10, 0, true);       // mod time
     lh.setUint16(12, 0x21, true);    // mod date
@@ -768,7 +803,7 @@ function makeZip(files) {
     ch.setUint32(0, 0x02014b50, true);
     ch.setUint16(4, 20, true);       // version made by
     ch.setUint16(6, 20, true);       // version needed
-    ch.setUint16(8, 0, true);        // flags
+    ch.setUint16(8, 0x0800, true);   // flags: bit 11 = UTF-8 file names
     ch.setUint16(10, 0, true);       // method
     ch.setUint16(12, 0, true);       // mod time
     ch.setUint16(14, 0x21, true);    // mod date
