@@ -9,8 +9,8 @@ const LANG = {
     appTitle:         'Photo Painter Converter',
     appSubtitle:      'Waveshare 7.3" e-Ink · 6-color Floyd-Steinberg',
     privacy:          '100% client-side — your images never leave this device',
-    dropzoneAria:     'Upload an image',
-    dzTitle:          'Drop an image here or <span class="accent">browse</span>',
+    dropzoneAria:     'Upload images',
+    dzTitle:          'Drop images here or <span class="accent">browse</span>',
     dzSub:            'PNG, JPG, WebP, BMP … converted to 800×480 / 480×800 24-bit BMP',
     orientation:      'Orientation',
     orientationLandscape: 'Landscape · 800 × 480',
@@ -35,8 +35,10 @@ flipVLabel:   'Flip horizontal',
     blackThresholdHelp:   'Pixels darker than this luminance are forced to pure black without dithering.',
     original:         'Original',
     converted:        'Converted',
+    thumbsTitle:      'Uploaded images',
     newImage:         'New image',
     downloadBMP:      'Download BMP',
+    downloadZip:      'Download ZIP',
     footer:           'Output is a 24-bit BMP using only the 6 e-Paper colors (Black, White, Yellow, Red, Blue, Green). Save it into the <code>pic</code> folder on the FAT32 SD card.',
     metaSource:       '{sw} × {sh} source → {dw} × {dh}',
     metaResult:       '{dw} × {dh} · {dither} · 6 colors',
@@ -48,8 +50,8 @@ flipVLabel:   'Flip horizontal',
     appTitle:         'Photo Painter Konverter',
     appSubtitle:      'Waveshare 7.3" E-Ink · 6-Farben Floyd-Steinberg',
     privacy:          '100% clientseitig — Ihre Bilder verlassen niemals dieses Gerät',
-    dropzoneAria:     'Bild hochladen',
-    dzTitle:          'Bild hier ablegen oder <span class="accent">durchsuchen</span>',
+    dropzoneAria:     'Bilder hochladen',
+    dzTitle:          'Bilder hier ablegen oder <span class="accent">durchsuchen</span>',
     dzSub:            'PNG, JPG, WebP, BMP … konvertiert zu 800×480 / 480×800 24-Bit BMP',
     orientation:      'Ausrichtung',
     orientationLandscape: 'Querformat · 800 × 480',
@@ -74,8 +76,10 @@ flipVLabel:   'Horizontal spiegeln',
     blackThresholdHelp:   'Pixel, die dunkler als dieser Helligkeitswert sind, werden ohne Dithering rein schwarz.',
     original:         'Original',
     converted:        'Konvertiert',
+    thumbsTitle:      'Hochgeladene Bilder',
     newImage:         'Neues Bild',
     downloadBMP:      'BMP herunterladen',
+    downloadZip:      'ZIP herunterladen',
     footer:           'Erzeugt ein 24-Bit BMP mit den 6 E-Paper-Farben (Schwarz, Weiß, Gelb, Rot, Blau, Grün). Speichern Sie es im Ordner <code>pic</code> auf einer FAT32-SD-Karte.',
     metaSource:       '{sw} × {sh} Quelle → {dw} × {dh}',
     metaResult:       '{dw} × {dh} · {dither} · 6 Farben',
@@ -139,7 +143,10 @@ const resultCanvas = $('resultCanvas');
 const originalMeta = $('originalMeta');
 const resultMeta = $('resultMeta');
 const downloadBtn = $('downloadBtn');
+const downloadZipBtn = $('downloadZipBtn');
 const resetBtn = $('resetBtn');
+const thumbCard = $('thumbCard');
+const thumbList = $('thumbList');
 const brightness = $('brightness');
 const contrast = $('contrast');
 const brightnessVal = $('brightnessVal');
@@ -151,8 +158,11 @@ const blackThresholdVal = $('blackThresholdVal');
 const langSelect = $('langSelect');
 
 // --- State --------------------------------------------------------------
-let sourceImage = null;      // HTMLImageElement
-let resultBlob = null;       // generated BMP blob
+let sourceImage = null;      // HTMLImageElement of the selected image
+let images = [];             // all loaded images: { id, name, img }
+let selectedId = null;       // id of the currently selected image
+let imageId = 0;             // counter for unique image ids
+let resultBuffer = null;     // generated BMP ArrayBuffer
 let resultName = 'photo.bmp';
 
 langSelect.addEventListener('change', () => setLanguage(langSelect.value));
@@ -172,35 +182,98 @@ dropzone.addEventListener('keydown', (e) => {
 );
 
 dropzone.addEventListener('drop', (e) => {
-  const file = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (file && file.type.startsWith('image/')) loadFile(file);
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  const files = e.dataTransfer && e.dataTransfer.files;
+  if (files && files.length) loadFiles(files);
 });
 
 fileInput.addEventListener('change', () => {
-  if (fileInput.files && fileInput.files[0]) loadFile(fileInput.files[0]);
+  if (fileInput.files && fileInput.files.length) loadFiles(fileInput.files);
 });
 
-function loadFile(file) {
-  const url = URL.createObjectURL(file);
-  const img = new Image();
-  img.onload = () => {
-    sourceImage = img;
-    resultBlob = null;
-    downloadBtn.disabled = true;
+function loadFiles(fileList) {
+  const files = [].slice.call(fileList).filter((f) => f.type.startsWith('image/'));
+  if (!files.length) return;
+
+  let pending = files.length;
+  const finish = () => {
+    if (--pending > 0) return;
     $('uploadCard').hidden = true;
+    thumbCard.hidden = false;
     settingsCard.hidden = false;
     previewCard.hidden = false;
     actionsCard.hidden = false;
-    render();
+    if (!selectedId && images.length) selectImage(images[0].id);
+    else render();
   };
-  img.onerror = () => alert('Could not load that image file.');
-  img.src = url;
+
+  files.forEach((file) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const entry = { id: 'img' + (++imageId), name: file.name, img };
+      images.push(entry);
+      addThumb(entry);
+      finish();
+    };
+    img.onerror = () => finish();
+    img.src = url;
+  });
+}
+
+// Build a clickable thumbnail for one image and add it to the list.
+function addThumb(entry) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'thumb';
+  btn.dataset.id = entry.id;
+
+  const canvas = document.createElement('canvas');
+  const iw = entry.img.naturalWidth;
+  const ih = entry.img.naturalHeight;
+  const scale = Math.min(92 / iw, 62 / ih);
+  canvas.width = Math.max(1, Math.round(iw * scale));
+  canvas.height = Math.max(1, Math.round(ih * scale));
+  canvas.getContext('2d').drawImage(entry.img, 0, 0, canvas.width, canvas.height);
+
+  const label = document.createElement('span');
+  label.textContent = entry.name;
+  label.title = entry.name;
+
+  btn.appendChild(canvas);
+  btn.appendChild(label);
+  btn.addEventListener('click', () => selectImage(entry.id));
+  thumbList.appendChild(btn);
+}
+
+// Select an image to edit and render it.
+function selectImage(id) {
+  const entry = images.find((e) => e.id === id);
+  if (!entry) return;
+  selectedId = id;
+  sourceImage = entry.img;
+  resultBuffer = null;
+  downloadBtn.disabled = true;
+  updateThumbSelection();
+  render();
+}
+
+function updateThumbSelection() {
+  const thumbs = thumbList.querySelectorAll('.thumb');
+  for (let i = 0; i < thumbs.length; i++) {
+    thumbs[i].classList.toggle('selected', thumbs[i].dataset.id === selectedId);
+  }
 }
 
 resetBtn.addEventListener('click', () => {
   sourceImage = null;
-  resultBlob = null;
+  selectedId = null;
+  images = [];
+  resultBuffer = null;
+  thumbList.innerHTML = '';
   $('uploadCard').hidden = false;
+  thumbCard.hidden = true;
   settingsCard.hidden = true;
   previewCard.hidden = true;
   actionsCard.hidden = true;
@@ -224,16 +297,11 @@ blackThreshold.addEventListener('input', () => { blackThresholdVal.textContent =
 // --- Render pipeline ----------------------------------------------------
 function render() {
   if (!sourceImage) return;
-  const res = RESOLUTIONS[$('orientation').value];
-  const w = res.width;
-  const h = res.height;
+  const w = RESOLUTIONS[$('orientation').value].width;
+  const h = RESOLUTIONS[$('orientation').value].height;
 
-  // 1. Build source pixels at target size (crop or letterbox).
-  const src = preparePixels(w, h);
-  // 2. Brightness / contrast adjustment.
-  const adjusted = adjust(src, w, h);
-  // 3. Quantize (and optionally dither) to the 6-color palette.
-  const out = quantize(adjusted, w, h);
+  // Convert the selected image (crop → adjust → quantize).
+  const out = convert(sourceImage, w, h);
 
   // Preview of the original and the converted result.
   showOriginal(originalCanvas, sourceImage);
@@ -247,21 +315,28 @@ function render() {
     .replace('{dither}', $('dithering').value === 'fs' ? t('metaFs') : t('metaNone'));
 
   // Build the 24-bit BMP for download.
-  resultBlob = makeBmp(out, w, h);
+  resultBuffer = makeBmp(out, w, h);
   downloadBtn.disabled = false;
   resultName = ($('orientation').value === '480x800' ? 'portrait' : 'landscape') + '.bmp';
 }
 
+// Run the full conversion pipeline for a given image with the current settings.
+function convert(img, w, h) {
+  const src = preparePixels(img, w, h);
+  const adjusted = adjust(src, w, h);
+  return quantize(adjusted, w, h);
+}
+
 // Prepare pixel data at the target dimensions using the selected fit mode.
-function preparePixels(w, h) {
+function preparePixels(img, w, h) {
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   ctx.imageSmoothingQuality = 'high';
 
-  const iw = sourceImage.naturalWidth;
-  const ih = sourceImage.naturalHeight;
+  const iw = img.naturalWidth;
+  const ih = img.naturalHeight;
 
   if ($('fitMode').value === 'cover') {
     const scale = Math.max(w / iw, h / ih);
@@ -269,7 +344,7 @@ function preparePixels(w, h) {
     const sh = h / scale;
     const sx = (iw - sw) / 2;
     const sy = (ih - sh) / 2;
-    ctx.drawImage(sourceImage, sx, sy, sw, sh, 0, 0, w, h);
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
   } else {
     // contain -> letterbox with white (a palette color)
     ctx.fillStyle = '#ffffff';
@@ -277,7 +352,7 @@ function preparePixels(w, h) {
     const scale = Math.min(w / iw, h / ih);
     const dw = iw * scale;
     const dh = ih * scale;
-    ctx.drawImage(sourceImage, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
   }
   return ctx.getImageData(0, 0, w, h).data;
 }
@@ -469,13 +544,13 @@ function makeBmp(data, w, h) {
     o = rowStart + rowSize;             // skip padding to next row
   }
 
-  return new Blob([buffer], { type: 'image/bmp' });
+  return buffer;
 }
 
 // --- Download -----------------------------------------------------------
 downloadBtn.addEventListener('click', () => {
-  if (!resultBlob) return;
-  const url = URL.createObjectURL(resultBlob);
+  if (!resultBuffer) return;
+  const url = URL.createObjectURL(new Blob([resultBuffer], { type: 'image/bmp' }));
   const a = document.createElement('a');
   a.href = url;
   a.download = resultName;
@@ -484,3 +559,125 @@ downloadBtn.addEventListener('click', () => {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 });
+
+downloadZipBtn.addEventListener('click', () => {
+  if (!images.length) return;
+  const w = RESOLUTIONS[$('orientation').value].width;
+  const h = RESOLUTIONS[$('orientation').value].height;
+  const seen = {};
+  const entries = images.map((entry) => {
+    const out = convert(entry.img, w, h);
+    const bytes = new Uint8Array(makeBmp(out, w, h));
+    let base = entry.name.replace(/\.[^.]+$/, '') || 'image';
+    if (seen[base]) base = base + ' (' + (++seen[base]) + ')';
+    else seen[base] = 1;
+    return { name: base + '.bmp', bytes };
+  });
+
+  const zipBytes = makeZip(entries);
+  const url = URL.createObjectURL(new Blob([zipBytes], { type: 'application/zip' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'e-ink-photos.zip';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+});
+
+// ---------------------------------------------------------------------------
+// Minimal ZIP writer (STORED entries, no compression)
+// ---------------------------------------------------------------------------
+// Produces a spec-compliant ZIP archive using the STORED method. Suitable for
+// BMPs, which are already raw and don't benefit meaningfully from ZIP's
+// (non-DEFLATE) storage; keeps the app dependency-free and fully offline.
+const CRC_TABLE = (function () {
+  const table = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    table[n] = c;
+  }
+  return table;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function makeZip(files) {
+  // files: [{ name, bytes: Uint8Array }]
+  const encoder = new TextEncoder();
+  const body = [];
+  const central = [];
+  let offset = 0;
+
+  files.forEach((file) => {
+    const nameBytes = encoder.encode(file.name);
+    const crc = crc32(file.bytes);
+    const size = file.bytes.length;
+    const localOffset = offset;
+
+    // Local file header (30 bytes + name + data)
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true);
+    lh.setUint16(4, 20, true);       // version needed
+    lh.setUint16(6, 0, true);        // flags
+    lh.setUint16(8, 0, true);        // method: stored
+    lh.setUint16(10, 0, true);       // mod time
+    lh.setUint16(12, 0x21, true);    // mod date
+    lh.setUint32(14, crc, true);
+    lh.setUint32(18, size, true);    // compressed size
+    lh.setUint32(22, size, true);    // uncompressed size
+    lh.setUint16(26, nameBytes.length, true);
+    lh.setUint16(28, 0, true);       // extra length
+    body.push(new Uint8Array(lh.buffer), nameBytes, file.bytes);
+    offset += 30 + nameBytes.length + size;
+
+    // Central directory entry (46 bytes + name)
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true);
+    ch.setUint16(4, 20, true);       // version made by
+    ch.setUint16(6, 20, true);       // version needed
+    ch.setUint16(8, 0, true);        // flags
+    ch.setUint16(10, 0, true);       // method
+    ch.setUint16(12, 0, true);       // mod time
+    ch.setUint16(14, 0x21, true);    // mod date
+    ch.setUint32(16, crc, true);
+    ch.setUint32(20, size, true);
+    ch.setUint32(24, size, true);
+    ch.setUint16(28, nameBytes.length, true);
+    ch.setUint16(30, 0, true);       // extra length
+    ch.setUint16(32, 0, true);       // comment length
+    ch.setUint16(34, 0, true);       // disk number
+    ch.setUint16(36, 0, true);       // internal attrs
+    ch.setUint32(38, 0, true);       // external attrs
+    ch.setUint32(42, localOffset, true);
+    central.push(new Uint8Array(ch.buffer), nameBytes);
+  });
+
+  const cdSize = central.reduce((s, c) => s + c.length, 0);
+  const cdOffset = offset;
+
+  // End of central directory record (22 bytes)
+  const eocd = new DataView(new ArrayBuffer(22));
+  eocd.setUint32(0, 0x06054b50, true);
+  eocd.setUint16(4, 0, true);        // disk number
+  eocd.setUint16(6, 0, true);        // cd start disk
+  eocd.setUint16(8, files.length, true);
+  eocd.setUint16(10, files.length, true);
+  eocd.setUint32(12, cdSize, true);
+  eocd.setUint32(16, cdOffset, true);
+  eocd.setUint16(20, 0, true);       // comment length
+
+  const total = cdOffset + cdSize + 22;
+  const out = new Uint8Array(total);
+  let pos = 0;
+  body.concat(central, [new Uint8Array(eocd.buffer)]).forEach((chunk) => {
+    out.set(chunk, pos);
+    pos += chunk.length;
+  });
+  return out;
+}
