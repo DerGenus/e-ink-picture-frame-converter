@@ -137,7 +137,8 @@ function setLanguage(lang) {
   });
   // Dynamically created add-image button
   if (addImageBtn && addImageBtn.isConnected) {
-    addImageBtn.querySelector('span').textContent = t('addImage');
+    const label = addImageBtn.querySelector('span:last-child');
+    if (label) label.textContent = t('addImage');
     addImageBtn.setAttribute('aria-label', t('addImage'));
   }
   // Update dynamic labels in render() if an image is loaded
