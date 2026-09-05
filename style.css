@@ -97,6 +97,14 @@ main {
   padding: 1px 6px;
   border-radius: 6px;
 }
+.output-note ol {
+  margin: 4px 0 0;
+  padding-left: 22px;
+}
+.output-note li {
+  margin: 3px 0;
+}
+.output-note li::marker { color: var(--muted); }
 
 .card {
   background: var(--card);
