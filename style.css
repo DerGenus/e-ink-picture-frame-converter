@@ -136,6 +136,7 @@ main {
   flex-wrap: wrap;
   gap: 10px;
 }
+.thumb-wrap { position: relative; }
 .thumb {
   display: flex;
   flex-direction: column;
@@ -168,6 +169,27 @@ main {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.thumb-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, color .15s, border-color .15s;
+}
+.thumb-wrap:hover .thumb-remove,
+.thumb-remove:focus-visible { opacity: 1; }
+.thumb-remove:hover { color: #ff7b72; border-color: #d73a49; }
 
 /* Settings */
 .settings-grid {

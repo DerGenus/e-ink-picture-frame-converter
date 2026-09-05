@@ -38,6 +38,7 @@ flipVLabel:   'Flip horizontal',
     original:         'Original',
     converted:        'Converted',
     thumbsTitle:      'Uploaded images',
+    removeImage:      'Remove image',
     newImage:         'New image',
     downloadBMP:      'Download BMP',
     downloadZip:      'Download ZIP',
@@ -88,6 +89,7 @@ flipVLabel:   'Horizontal spiegeln',
     original:         'Original',
     converted:        'Konvertiert',
     thumbsTitle:      'Hochgeladene Bilder',
+    removeImage:      'Bild entfernen',
     newImage:         'Neues Bild',
     downloadBMP:      'BMP herunterladen',
     downloadZip:      'ZIP herunterladen',
@@ -126,6 +128,12 @@ function setLanguage(lang) {
   // Elements with data-i18n-aria (aria-label)
   document.querySelectorAll('[data-i18n-aria]').forEach(el => {
     el.setAttribute('aria-label', t(el.dataset.i18nAria));
+  });
+  // Dynamically created thumbnail remove buttons
+  document.querySelectorAll('.thumb-remove').forEach(el => {
+    const label = t('removeImage');
+    el.setAttribute('aria-label', label);
+    el.title = label;
   });
   // Update dynamic labels in render() if an image is loaded
   if (sourceImage) render();
@@ -314,6 +322,9 @@ function loadFiles(fileList) {
 
 // Build a clickable thumbnail for one image and add it to the list.
 function addThumb(entry) {
+  const wrap = document.createElement('div');
+  wrap.className = 'thumb-wrap';
+
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'thumb';
@@ -334,7 +345,42 @@ function addThumb(entry) {
   btn.appendChild(canvas);
   btn.appendChild(label);
   btn.addEventListener('click', () => selectImage(entry.id));
-  thumbList.appendChild(btn);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'thumb-remove';
+  removeBtn.dataset.id = entry.id;
+  removeBtn.setAttribute('aria-label', t('removeImage'));
+  removeBtn.title = t('removeImage');
+  removeBtn.innerHTML =
+    '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">' +
+    '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  removeBtn.addEventListener('click', () => removeImage(entry.id));
+
+  wrap.appendChild(btn);
+  wrap.appendChild(removeBtn);
+  thumbList.appendChild(wrap);
+}
+
+// Remove an image from the list. When the last image is removed, the app
+// returns to the start screen. Otherwise the next image is selected.
+function removeImage(id) {
+  const index = images.findIndex((e) => e.id === id);
+  if (index === -1) return;
+  images[index].img.removeAttribute('src');
+  images.splice(index, 1);
+
+  const thumb = thumbList.querySelector('.thumb[data-id="' + id + '"]');
+  if (thumb && thumb.parentElement) thumb.parentElement.remove();
+
+  if (!images.length) {
+    showStartScreen();
+    return;
+  }
+  if (selectedId === id) {
+    const next = images[Math.min(index, images.length - 1)];
+    selectImage(next.id);
+  }
 }
 
 // Select an image to edit and render it.
@@ -377,11 +423,10 @@ function updateThumbSelection() {
   }
 }
 
-resetBtn.addEventListener('click', () => {
-  images.forEach((entry) => entry.img.removeAttribute('src'));
+// Hide all work sections and return to the start (upload) screen.
+function showStartScreen() {
   sourceImage = null;
   selectedId = null;
-  images = [];
   resultBuffer = null;
   thumbList.innerHTML = '';
   $('uploadCard').hidden = false;
@@ -390,7 +435,14 @@ resetBtn.addEventListener('click', () => {
   previewCard.hidden = true;
   actionsCard.hidden = true;
   downloadBtn.disabled = true;
+  hideError();
   fileInput.value = '';
+}
+
+resetBtn.addEventListener('click', () => {
+  images.forEach((entry) => entry.img.removeAttribute('src'));
+  images = [];
+  showStartScreen();
 });
 
 resetSettingsBtn.addEventListener('click', () => {
