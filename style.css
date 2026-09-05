@@ -132,6 +132,7 @@ main {
 .accent { color: var(--accent); }
 
 /* Thumbnails */
+.settings-title,
 .thumbs-title {
   margin: 0 0 12px;
   font-size: 0.85rem;
@@ -304,9 +305,11 @@ main {
 
 .settings-actions {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
 }
+.settings-title { margin: 0; }
 .btn.sm { padding: 9px 14px; font-size: 0.85rem; }
 .btn.tip { position: relative; }
 .btn.icon-only {
