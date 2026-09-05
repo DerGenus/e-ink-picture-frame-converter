@@ -706,9 +706,10 @@ function makeBmp(data, w, h, settings) {
   writeU32(0);                          // colors used
   writeU32(0);                          // important colors
 
-  // Pixel data: bottom-up, BGR.
+  // Pixel data: bottom-up (first scanline in the file = bottom of the image),
+  // BGR byte order.
   const flip = settings.flipV === 'on';
-  for (let y = 0; y < h; y++) {
+  for (let y = h - 1; y >= 0; y--) {
     const rowStart = o;
     for (let x = 0; x < w; x++) {
       const sx = flip ? (w - 1 - x) : x;
