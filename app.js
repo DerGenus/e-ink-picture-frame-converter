@@ -39,7 +39,7 @@ flipVLabel:   'Flip horizontal',
     converted:        'Converted',
     thumbsTitle:      'Uploaded images',
     removeImage:      'Remove image',
-    newImage:         'New image',
+    addImage:         'Add image',
     downloadBMP:      'Download BMP',
     downloadZip:      'Download ZIP',
     footer:           'Output is a 24-bit BMP using only the 6 e-Paper colors (Black, White, Yellow, Red, Blue, Green). Save it into the <code>pic</code> folder on the FAT32 SD card.',
@@ -90,7 +90,7 @@ flipVLabel:   'Horizontal spiegeln',
     converted:        'Konvertiert',
     thumbsTitle:      'Hochgeladene Bilder',
     removeImage:      'Bild entfernen',
-    newImage:         'Neues Bild',
+    addImage:         'Bild hinzufügen',
     downloadBMP:      'BMP herunterladen',
     downloadZip:      'ZIP herunterladen',
     footer:           'Erzeugt ein 24-Bit BMP mit den 6 E-Paper-Farben (Schwarz, Weiß, Gelb, Rot, Blau, Grün). Speichern Sie es im Ordner <code>pic</code> auf einer FAT32-SD-Karte.',
@@ -135,6 +135,11 @@ function setLanguage(lang) {
     el.setAttribute('aria-label', label);
     el.title = label;
   });
+  // Dynamically created add-image button
+  if (addImageBtn && addImageBtn.isConnected) {
+    addImageBtn.querySelector('span').textContent = t('addImage');
+    addImageBtn.setAttribute('aria-label', t('addImage'));
+  }
   // Update dynamic labels in render() if an image is loaded
   if (sourceImage) render();
 }
@@ -217,7 +222,6 @@ const originalMeta = $('originalMeta');
 const resultMeta = $('resultMeta');
 const downloadBtn = $('downloadBtn');
 const downloadZipBtn = $('downloadZipBtn');
-const resetBtn = $('resetBtn');
 const thumbCard = $('thumbCard');
 const thumbList = $('thumbList');
 const brightness = $('brightness');
@@ -238,6 +242,7 @@ let selectedId = null;       // id of the currently selected image
 let imageId = 0;             // counter for unique image ids
 let resultBuffer = null;     // generated BMP ArrayBuffer
 let resultName = 'photo.bmp';
+let addImageBtn = null;      // "Add image" placeholder in the thumb list
 
 langSelect.addEventListener('change', () => setLanguage(langSelect.value));
 setLanguage(langSelect.value);
@@ -264,6 +269,7 @@ dropzone.addEventListener('drop', (e) => {
 
 fileInput.addEventListener('change', () => {
   if (fileInput.files && fileInput.files.length) loadFiles(fileInput.files);
+  fileInput.value = '';
 });
 
 function loadFiles(fileList) {
@@ -287,6 +293,7 @@ function loadFiles(fileList) {
     settingsCard.hidden = false;
     previewCard.hidden = false;
     actionsCard.hidden = false;
+    ensureAddButton();
     if (!selectedId && images.length) selectImage(images[0].id);
     else render();
   };
@@ -360,6 +367,8 @@ function addThumb(entry) {
   wrap.appendChild(btn);
   wrap.appendChild(removeBtn);
   thumbList.appendChild(wrap);
+  // Keep the "Add image" placeholder at the end of the list.
+  if (addImageBtn) thumbList.appendChild(addImageBtn);
 }
 
 // Remove an image from the list. When the last image is removed, the app
@@ -439,11 +448,25 @@ function showStartScreen() {
   fileInput.value = '';
 }
 
-resetBtn.addEventListener('click', () => {
-  images.forEach((entry) => entry.img.removeAttribute('src'));
-  images = [];
-  showStartScreen();
-});
+// Add a dashed "Add image" placeholder button at the end of the thumb list.
+// Clicking it opens the file picker to append more images.
+function ensureAddButton() {
+  if (addImageBtn && addImageBtn.isConnected) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'thumb-add';
+  btn.setAttribute('aria-label', t('addImage'));
+  btn.innerHTML =
+    '<span class="thumb-add-icon" aria-hidden="true">' +
+    '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">' +
+    '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
+    '</span>' +
+    '<span></span>';
+  btn.querySelector('span:last-child').textContent = t('addImage');
+  btn.addEventListener('click', () => fileInput.click());
+  thumbList.appendChild(btn);
+  addImageBtn = btn;
+}
 
 resetSettingsBtn.addEventListener('click', () => {
   const entry = selectedEntry();

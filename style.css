@@ -190,6 +190,36 @@ main {
 .thumb-wrap:hover .thumb-remove,
 .thumb-remove:focus-visible { opacity: 1; }
 .thumb-remove:hover { color: #ff7b72; border-color: #d73a49; }
+.thumb-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 112px;
+  padding: 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, box-shadow .15s;
+}
+.thumb-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.thumb-add-icon {
+  width: 92px;
+  height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: repeating-conic-gradient(#20262f 0% 25%, #1a1f27 0% 50%) 0 0 / 12px 12px;
+}
 
 /* Settings */
 .settings-grid {
