@@ -33,6 +33,8 @@ flipVLabel:   'Flip horizontal',
     contrastHelp:         'Adjusts the difference between light and dark areas.',
     ditherStrengthHelp:   'Controls how strongly Floyd-Steinberg error diffusion is applied. Higher values add more texture, lower values look smoother.',
     blackThresholdHelp:   'Pixels darker than this luminance are forced to pure black without dithering.',
+    resetSettings:    'Reset settings',
+    resetSettingsHelp: 'All values for this image are reverted to the original defaults.',
     original:         'Original',
     converted:        'Converted',
     thumbsTitle:      'Uploaded images',
@@ -81,6 +83,8 @@ flipVLabel:   'Horizontal spiegeln',
     contrastHelp:         'Passt den Unterschied zwischen hellen und dunklen Bereichen an.',
     ditherStrengthHelp:   'Steuert, wie stark die Floyd-Steinberg-Fehlerverteilung angewendet wird. Höhere Werte erzeugen mehr Textur, niedrigere wirken glatter.',
     blackThresholdHelp:   'Pixel, die dunkler als dieser Helligkeitswert sind, werden ohne Dithering rein schwarz.',
+    resetSettings:    'Einstellungen zurücksetzen',
+    resetSettingsHelp: 'Alle Werte für dieses Bild werden auf die ursprünglichen Standardwerte zurückgesetzt.',
     original:         'Original',
     converted:        'Konvertiert',
     thumbsTitle:      'Hochgeladene Bilder',
@@ -217,6 +221,7 @@ const ditherStrengthVal = $('ditherStrengthVal');
 const blackThreshold = $('blackThreshold');
 const blackThresholdVal = $('blackThresholdVal');
 const langSelect = $('langSelect');
+const resetSettingsBtn = $('resetSettingsBtn');
 
 // --- State --------------------------------------------------------------
 let sourceImage = null;      // HTMLImageElement of the selected image
@@ -386,6 +391,14 @@ resetBtn.addEventListener('click', () => {
   actionsCard.hidden = true;
   downloadBtn.disabled = true;
   fileInput.value = '';
+});
+
+resetSettingsBtn.addEventListener('click', () => {
+  const entry = selectedEntry();
+  if (!entry) return;
+  entry.settings = Object.assign({}, DEFAULT_SETTINGS);
+  applySettingsToControls(entry.settings);
+  queueRender();
 });
 
 // --- Settings -----------------------------------------------------------
