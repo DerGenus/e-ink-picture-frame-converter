@@ -106,6 +106,17 @@ main {
 }
 .output-note li::marker { color: var(--muted); }
 
+.mac-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--border);
