@@ -54,6 +54,7 @@ flipVLabel:   'Flip horizontal',
     toastTooMany:     'Only the first {n} files were loaded.',
     toastImageRejected: 'Skipped {name} — image too large (max 100 megapixels).',
     toastLoadFailed:  'Could not load {name}.',
+    toastDropOutside: 'Please drop your images on the upload area above.',
     errorConvert:     'Could not convert this image. Please try another file.',
     langAria:         'Language',
   },
@@ -107,6 +108,7 @@ flipVLabel:   'Horizontal spiegeln',
     toastTooMany:     'Nur die ersten {n} Dateien wurden geladen.',
     toastImageRejected: 'Übersprungen: {name} — Bild zu groß (max. 100 Megapixel).',
     toastLoadFailed:  'Konnte {name} nicht laden.',
+    toastDropOutside: 'Bitte legen Sie Ihre Bilder im Upload-Bereich oben ab.',
     errorConvert:     'Dieses Bild konnte nicht konvertiert werden. Bitte versuchen Sie eine andere Datei.',
     langAria:         'Sprache',
   },
@@ -271,6 +273,19 @@ dropzone.addEventListener('drop', (e) => {
   const files = e.dataTransfer && e.dataTransfer.files;
   if (files && files.length) loadFiles(files);
 });
+
+// Guard: cancel the browser default for file drags outside the dropzone.
+// Without this, dropping an image anywhere else replaces the whole app with
+// the file and loses all loaded state.
+['dragover', 'drop'].forEach((ev) =>
+  window.addEventListener(ev, (e) => {
+    if (!(e.dataTransfer && e.dataTransfer.types.includes('Files'))) return;
+    e.preventDefault();
+    if (ev === 'drop' && !dropzone.contains(e.target)) {
+      showToast(t('toastDropOutside'));
+    }
+  })
+);
 
 fileInput.addEventListener('change', () => {
   if (fileInput.files && fileInput.files.length) loadFiles(fileInput.files);

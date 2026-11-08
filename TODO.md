@@ -7,7 +7,7 @@ Legend: 🔴 high priority · 🟡 medium · 🟢 nice to have
 
 ## Usability
 
-- [ ] 🔴 Guard drag-and-drop outside the dropzone (`app.js:261–273`).
+- [x] 🔴 Guard drag-and-drop outside the dropzone (`app.js:261–273`).
       Dropping a file anywhere else on the page triggers default browser
       behavior, which replaces the app with the image and loses all loaded
       state. Add `window`-level `dragover`/`drop` `preventDefault()` plus a
